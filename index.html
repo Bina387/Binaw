@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Results Portal</title>
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <!-- Firebase CDN scripts (compat for Realtime Database) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body id="main-body" class="min-h-full transition-colors duration-300"
+style="background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe); background-size: 400% 400%; animation: gradientShift 8s ease infinite;">
+<div class="min-h-full flex flex-col">
+  <!-- Header with mode toggle -->
+  <header class="backdrop-blur-md bg-white/10 dark:bg-black/20 border border-white/20 dark:border-gray-700 p-6">
+    <div class="max-w-6xl mx-auto flex flex-col items-center gap-2 relative">
+      <h1 id="school-name" class="text-3xl font-bold text-white dark:text-gray-100 text-center">NEJO SPECIAL BOARDING SCHOOL</h1>
+      <p id="welcome-message" class="text-white/80 dark:text-gray-200 text-center mt-2">Welcome to our Student Results Portal</p>
+      <div class="absolute right-0 top-0 mt-2 mr-2">
+        <button id="toggle-mode-btn"
+          class="flex items-center gap-1 bg-white/20 dark:bg-gray-900 text-black dark:text-white px-3 py-1 rounded-md border border-gray-200 dark:border-gray-700 shadow-sm hover:bg-white/40 dark:hover:bg-gray-800 transition-colors font-medium"
+          onclick="toggleThemeMode()"
+          type="button">
+          <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <circle cx="12" cy="12" r="5" stroke-width="2"></circle>
+            <path stroke-linecap="round" stroke-width="2" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              d="M21 12.79A9 9 0 1111.21 3a7 7 0 0010 9.79z"/>
+          </svg>
+          <span id="mode-label" class="hidden sm:inline">Light</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6">
+    <div class="max-w-4xl mx-auto">
+      <!-- Home Page -->
+      <div id="home-page" class="space-y-8">
+        <div class="text-center mb-8">
+          <h2 class="text-4xl font-bold text-white dark:text-gray-100 mb-4">Student Results Management System</h2>
+          <p class="text-white/90 dark:text-gray-200 text-lg">Secure portal for students and teachers</p>
+          <div class="mt-4">
+            <button onclick="seedDemoAndOpenTeacher()" class="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-md font-semibold mr-2">Run Demo</button>
+            <button onclick="showHome()" class="bg-white/10 hover:bg-white/20 dark:bg-gray-900/50 dark:hover:bg-gray-800/70 text-white px-4 py-2 rounded-md font-medium">Reset</button>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-8">
+          <!-- Student Portal -->
+          <div class="backdrop-blur-md bg-white/10 dark:bg-zinc-900/50 border border-white/20 dark:border-gray-700 rounded-xl p-8 text-center">
+            <div class="text-6xl mb-4">🎓</div>
+            <h3 class="text-2xl font-bold text-white dark:text-gray-100 mb-4">Student Portal</h3>
+            <p class="text-white/80 dark:text-gray-200 mb-6">Check your exam results and academic progress</p>
+            <button onclick="showStudentLogin()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors w-full"> Student Login </button>
+          </div>
+          <!-- Teacher Portal -->
+          <div class="backdrop-blur-md bg-white/10 dark:bg-zinc-900/50 border border-white/20 dark:border-gray-700 rounded-xl p-8 text-center">
+            <div class="text-6xl mb-4">👨‍🏫</div>
+            <h3 class="text-2xl font-bold text-white dark:text-gray-100 mb-4">Teacher Portal</h3>
+            <p class="text-white/80 dark:text-gray-200 mb-6">Upload and manage student results</p>
+            <button onclick="showTeacherLogin()" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors w-full"> Teacher Login </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student Login/Register Page -->
+      <div id="student-login-page" class="hidden">
+        <div class="max-w-md mx-auto backdrop-blur-md bg-white/10 dark:bg-zinc-900/60 border border-white/20 dark:border-gray-700 rounded-xl p-8">
+          <div class="text-center mb-6">
+            <div class="text-5xl mb-4">🎓</div>
+            <h2 class="text-2xl font-bold text-white dark:text-gray-100">Student Login</h2>
+          </div>
+          <div id="student-login-form">
+            <div class="space-y-4">
+              <div>
+                <label for="student-id-login" class="block text-white dark:text-gray-200 font-medium mb-2">Student ID</label>
+                <input type="text" id="student-id-login" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter your Student ID">
+              </div>
+              <div>
+                <label for="student-password-login" class="block text-white dark:text-gray-200 font-medium mb-2">Password</label>
+                <input type="password" id="student-password-login" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter your password">
+              </div>
+              <button onclick="loginStudent()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"> Login </button>
+              <div class="text-center">
+                <button onclick="showStudentRegister()" class="text-white/80 dark:text-gray-300 hover:text-white underline"> Don't have an account? Register here </button>
+              </div>
+            </div>
+          </div>
+          <div id="student-register-form" class="hidden">
+            <div class="space-y-4">
+              <div>
+                <label for="student-name-register" class="block text-white dark:text-gray-200 font-medium mb-2">Full Name</label>
+                <input type="text" id="student-name-register" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter your full name">
+              </div>
+              <div>
+                <label for="student-id-register" class="block text-white dark:text-gray-200 font-medium mb-2">Student ID</label>
+                <input type="text" id="student-id-register" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter your Student ID">
+              </div>
+              <div>
+                <label for="student-password-register" class="block text-white dark:text-gray-200 font-medium mb-2">Create Password</label>
+                <input type="password" id="student-password-register" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Create a password">
+              </div>
+              <button onclick="registerStudent()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"> Register </button>
+              <div class="text-center">
+                <button onclick="showStudentLogin()" class="text-white/80 dark:text-gray-300 hover:text-white underline"> Already have an account? Login here </button>
+              </div>
+            </div>
+          </div>
+          <div class="text-center mt-6">
+            <button onclick="showHome()" class="text-white/80 dark:text-gray-200 hover:text-white underline"> ← Back to Home </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Teacher Login Page -->
+      <div id="teacher-login-page" class="hidden">
+        <div class="max-w-md mx-auto backdrop-blur-md bg-white/10 dark:bg-zinc-900/60 border border-white/20 dark:border-gray-700 rounded-xl p-8">
+          <div class="text-center mb-6">
+            <div class="text-5xl mb-4">👨‍🏫</div>
+            <h2 class="text-2xl font-bold text-white dark:text-gray-100">Teacher Login</h2>
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label for="teacher-name" class="block text-white dark:text-gray-200 font-medium mb-2">Teacher Name</label>
+              <input type="text" id="teacher-name" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter your name">
+            </div>
+            <div>
+              <label for="teacher-password" class="block text-white dark:text-gray-200 font-medium mb-2">Password</label>
+              <input type="password" id="teacher-password" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter password">
+            </div>
+            <button onclick="loginTeacher()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-colors"> Login </button>
+          </div>
+          <div class="text-center mt-6">
+            <button onclick="showHome()" class="text-white/80 dark:text-gray-200 hover:text-white underline"> ← Back to Home </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student Dashboard -->
+      <div id="student-dashboard" class="hidden">
+        <div class="backdrop-blur-md bg-white/10 dark:bg-zinc-900/60 border border-white/20 dark:border-gray-700 rounded-xl p-8">
+          <div class="flex justify-between items-center mb-6">
+            <div>
+              <h2 class="text-2xl font-bold text-white dark:text-gray-100">Student Dashboard</h2>
+              <p id="student-welcome" class="text-white/80 dark:text-gray-200">Welcome back!</p>
+            </div>
+            <button onclick="logoutStudent()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"> Logout </button>
+          </div>
+          <div class="bg-white/10 dark:bg-black/20 rounded-lg p-6">
+            <h3 class="text-xl font-semibold text-white dark:text-gray-100 mb-4">Your Results</h3>
+            <div id="student-results" class="space-y-3"><p class="text-white/80 dark:text-gray-200">No results available yet.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Teacher Dashboard -->
+      <div id="teacher-dashboard" class="hidden">
+        <div class="backdrop-blur-md bg-white/10 dark:bg-zinc-900/60 border border-white/20 dark:border-gray-700 rounded-xl p-8">
+          <div class="flex justify-between items-center mb-6">
+            <div>
+              <h2 class="text-2xl font-bold text-white dark:text-gray-100">Teacher Dashboard</h2>
+              <p id="teacher-welcome" class="text-white/80 dark:text-gray-200">Manage student results</p>
+            </div>
+            <button onclick="logoutTeacher()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"> Logout </button>
+          </div>
+          <!-- Registered Students List -->
+          <div id="registered-students" class="mb-6 bg-white/10 dark:bg-black/20 rounded-lg p-6">
+            <h3 class="text-xl font-semibold text-white dark:text-gray-100 mb-4">Registered Students</h3>
+            <div id="registered-students-list" class="space-y-2">
+              <!-- List will be rendered here -->
+            </div>
+          </div>
+          <!-- Upload Results Form -->
+          <div class="bg-white/10 dark:bg-black/20 rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-semibold text-white dark:text-gray-100 mb-4">Upload Student Result</h3>
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <label for="result-grade-level" class="block text-white dark:text-gray-200 font-medium mb-2">Grade Level</label>
+                <select id="result-grade-level" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100">
+                  <option value="9th">9th</option>
+                  <option value="10th">10th</option>
+                  <option value="11th">11th</option>
+                  <option value="12th">12th</option>
+                </select>
+              </div>
+              <div id="result-stream-container" class="hidden">
+                <label for="result-stream" class="block text-white dark:text-gray-200 font-medium mb-2">Stream</label>
+                <select id="result-stream" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100">
+                  <option value="">Select stream</option>
+                  <option value="Natural">Natural</option>
+                  <option value="Social">Social</option>
+                </select>
+              </div>
+              <div>
+                <label for="result-student-id" class="block text-white dark:text-gray-200 font-medium mb-2">Student ID</label>
+                <input type="text" id="result-student-id" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter Student ID">
+              </div>
+              <div>
+                <label for="result-subject" class="block text-white dark:text-gray-200 font-medium mb-2">Subject</label>
+                <select id="result-subject" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100"></select>
+              </div>
+              <div>
+                <label for="result-score" class="block text-white dark:text-gray-200 font-medium mb-2">Score</label>
+                <input type="number" id="result-score" min="0" max="100" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100 placeholder-white/60" placeholder="Enter score (0-100)">
+              </div>
+              <div>
+                <label for="result-status" class="block text-white dark:text-gray-200 font-medium mb-2">Status</label>
+                <select id="result-status" class="w-full px-4 py-3 rounded-lg bg-white/10 dark:bg-black/30 border border-white/20 dark:border-gray-700 text-white dark:text-gray-100">
+                  <option value="Pass" class="bg-gray-800">Pass</option>
+                  <option value="Fail" class="bg-gray-800">Fail</option>
+                </select>
+              </div>
+            </div>
+            <button onclick="uploadResult()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"> Upload Result </button>
+          </div>
+          <!-- All Results Table -->
+          <div class="bg-white/10 dark:bg-black/20 rounded-lg p-6">
+            <h3 class="text-xl font-semibold text-white dark:text-gray-100 mb-4">All Student Results</h3>
+            <div id="all-results" class="space-y-3"><p class="text-white/80 dark:text-gray-200">No results uploaded yet.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <!-- Footer -->
+  <footer class="backdrop-blur-md bg-white/10 dark:bg-black/20 border border-white/20 dark:border-gray-700 p-4">
+    <div class="max-w-6xl mx-auto text-center">
+      <p id="footer-text" class="text-white/80 dark:text-gray-200">© 2024 School Results Portal - Secure &amp; Reliable</p>
+    </div>
+  </footer>
+</div>
+<script>
+// Fancy gradient animation (background)
+let style = document.createElement('style');
+style.innerHTML = `@keyframes gradientShift {
+  0%{background-position:0% 50%;}
+  50%{background-position:100% 50%;}
+  100%{background-position:0% 50%;}
+}
+html, body { animation: gradientShift 8s ease infinite; }`;
+document.head.appendChild(style);
+
+// ==== THEME HANDLING ====
+function setMode(isDark) {
+  const html = document.documentElement;
+  if (isDark) {
+    html.classList.add('dark');
+    localStorage.setItem('schoolPortalMode', 'dark');
+    document.getElementById("mode-label").textContent = "Dark";
+    document.getElementById("sun-icon").classList.add('hidden');
+    document.getElementById("moon-icon").classList.remove('hidden');
+  } else {
+    html.classList.remove('dark');
+    localStorage.setItem('schoolPortalMode', 'light');
+    document.getElementById("mode-label").textContent = "Light";
+    document.getElementById("sun-icon").classList.remove('hidden');
+    document.getElementById("moon-icon").classList.add('hidden');
+  }
+}
+function toggleThemeMode() {
+  const html = document.documentElement;
+  const isDark = !html.classList.contains('dark');
+  setMode(isDark);
+}
+(function(){
+  let userPref = localStorage.getItem('schoolPortalMode');
+  let prefersDark = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if(userPref){
+    setMode(userPref === 'dark');
+  } else {
+    setMode(prefersDark);
+  }
+})();
+
+// ==== SCHOOL PORTAL LOGIC ====
+// Firebase Realtime Database config (your provided details)
+const firebaseConfig = {
+  apiKey: "AIzaSyC1HgAmVO7m_Yb_RoKhwZf090aI3xpc9d4",
+  authDomain: "website-2355e.firebaseapp.com",
+  databaseURL: "https://website-2355e-default-rtdb.firebaseio.com",
+  projectId: "website-2355e",
+  storageBucket: "website-2355e.appspot.com",
+  messagingSenderId: "625668481313",
+  appId: "1:625668481313:web:bb98e05da3131d6d8b1e60",
+  measurementId: "G-C6EZWK594L"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let students = [];
+let results = [];
+let currentUser = null;
+let currentUserType = null;
+
+const FULL_SUBJECTS = ['Mathematics','Biology','English','Physics','Chemistry','Geography','History','Economics','F.Language','Afan Oromo','Amharic','ICT','HPE','Area-Study','Citizenship','Agriculture','CHS'];
+const NATURAL_SUBJECTS = ['Mathematics','Biology','English','Physics','Chemistry','F.Language','Afan Oromo','ICT','Area-Study','Agriculture','CHS'];
+const SOCIAL_SUBJECTS = ['Mathematics','English','Geography','History','Economics','F.Language','Afan Oromo','ICT','Area-Study','CHS'];
+const LOWER_SUBJECTS = FULL_SUBJECTS.filter(s => s !== 'CHS' && s !== 'Agriculture');
+let SUBJECTS = FULL_SUBJECTS.slice();
+
+function setSubjects(newList) {
+    if (!Array.isArray(newList)) return;
+    SUBJECTS = newList.slice();
+    populateSubjectOptions();
+}
+function populateSubjectOptions() {
+    const sel = document.getElementById('result-subject');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = SUBJECTS.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    if (prev && SUBJECTS.includes(prev)) sel.value = prev;
+}
+function updateSubjectOptionsBasedOnGradeAndStream() {
+    const gradeEl = document.getElementById('result-grade-level');
+    const streamEl = document.getElementById('result-stream');
+    const streamContainer = document.getElementById('result-stream-container');
+    if (!gradeEl) return;
+    const grade = gradeEl.value;
+    if (grade === '11th' || grade === '12th') {
+        if (streamContainer) streamContainer.classList.remove('hidden');
+        const stream = streamEl ? streamEl.value : '';
+        if (stream === 'Natural') setSubjects(NATURAL_SUBJECTS);
+        else if (stream === 'Social') setSubjects(SOCIAL_SUBJECTS);
+        else {
+            setSubjects([]);
+            const sel = document.getElementById('result-subject');
+            if (sel) sel.innerHTML = `<option value="">Select stream first</option>`;
+        }
+    } else {
+        if (streamContainer) streamContainer.classList.add('hidden');
+        if (streamEl) streamEl.value = '';
+        setSubjects(LOWER_SUBJECTS);
+    }
+}
+
+function syncFromFirebase(callback) {
+  if (!window._firebaseListenersInstalled) {
+    db.ref('students').on('value', snap => {
+      students = [];
+      const val = snap.val() || {};
+      for (let k in val) students.push(val[k]);
+      if (typeof callback === 'function') callback();
+    });
+    db.ref('results').on('value', snap2 => {
+      results = [];
+      const val2 = snap2.val() || {};
+      for (let k in val2) results.push(val2[k]);
+      if (typeof callback === 'function') callback();
+    });
+    window._firebaseListenersInstalled = true;
+  } else {
+    if (typeof callback === 'function') callback();
+  }
+}
+function saveStudentToFirebase(student) {
+    db.ref('students/' + student.student_id).set(student);
+}
+function saveResultToFirebase(result) {
+    db.ref('results').push(result);
+}
+function clearFirebaseDemo() {
+    db.ref('students').remove();
+    db.ref('results').remove();
+}
+function initializeApp() {
+    populateSubjectOptions();
+    const gradeSelect = document.getElementById('result-grade-level');
+    const streamSelect = document.getElementById('result-stream');
+    if (gradeSelect) gradeSelect.addEventListener('change', updateSubjectOptionsBasedOnGradeAndStream);
+    if (streamSelect) streamSelect.addEventListener('change', updateSubjectOptionsBasedOnGradeAndStream);
+    updateSubjectOptionsBasedOnGradeAndStream();
+    syncFromFirebase(showHome);
+}
+function showHome() {
+    hideAllPages();
+    document.getElementById('home-page').classList.remove('hidden');
+    currentUser = null; currentUserType = null;
+}
+function showStudentLogin() {
+    hideAllPages();
+    document.getElementById('student-login-page').classList.remove('hidden');
+    document.getElementById('student-login-form').classList.remove('hidden');
+    document.getElementById('student-register-form').classList.add('hidden');
+}
+function showStudentRegister() {
+    document.getElementById('student-login-form').classList.add('hidden');
+    document.getElementById('student-register-form').classList.remove('hidden');
+}
+function showTeacherLogin() {
+    hideAllPages();
+    document.getElementById('teacher-login-page').classList.remove('hidden');
+}
+function hideAllPages() {
+    ['home-page', 'student-login-page', 'teacher-login-page', 'student-dashboard', 'teacher-dashboard']
+        .forEach(page => document.getElementById(page).classList.add('hidden'));
+}
+function registerStudent() {
+    const name = document.getElementById('student-name-register').value.trim();
+    const studentId = document.getElementById('student-id-register').value.trim();
+    const password = document.getElementById('student-password-register').value.trim();
+    if (!name || !studentId || !password) {
+        showMessage("Please fill in all fields", "error");
+        return;
+    }
+    syncFromFirebase(function() {
+        if (students.some(s => s.student_id === studentId)) {
+            showMessage("Student ID already registered", "error");
+            return;
+        }
+        const student = { student_id: studentId, student_name: name, student_password: password };
+        students.push(student);
+        saveStudentToFirebase(student);
+        showMessage("Registration successful! You can now login.", "success");
+        showStudentLogin();
+        clearForm(['student-name-register', 'student-id-register', 'student-password-register']);
+        updateRegisteredStudentsList();
+    });
+}
+function loginStudent() {
+    const studentId = document.getElementById('student-id-login').value.trim();
+    const password = document.getElementById('student-password-login').value.trim();
+    if (!studentId || !password) {
+        showMessage("Please enter both Student ID and password", "error");
+        return;
+    }
+    syncFromFirebase(function() {
+        const student = students.find(s => s.student_id === studentId && s.student_password === password);
+        if (student) {
+            currentUser = student; currentUserType = 'student';
+            document.getElementById('student-welcome').textContent = `Welcome back, ${student.student_name}!`;
+            hideAllPages();
+            document.getElementById('student-dashboard').classList.remove('hidden');
+            updateStudentResults();
+            clearForm(['student-id-login', 'student-password-login']);
+        } else {
+            showMessage("Invalid Student ID or password", "error");
+        }
+    });
+}
+function loginTeacher() {
+    const teacherName = document.getElementById('teacher-name').value.trim();
+    const password = document.getElementById('teacher-password').value.trim();
+    if (!teacherName || !password) {
+        showMessage("Please enter both name and password", "error");
+        return;
+    }
+    if (password === 'teacher2025') {
+        currentUser = { name: teacherName };
+        currentUserType = 'teacher';
+        document.getElementById('teacher-welcome').textContent = `Welcome, ${teacherName}!`;
+        hideAllPages();
+        document.getElementById('teacher-dashboard').classList.remove('hidden');
+        updateSubjectOptionsBasedOnGradeAndStream();
+        updateAllResults();
+        updateRegisteredStudentsList();
+        clearForm(['teacher-name', 'teacher-password']);
+    } else {
+        showMessage("Invalid password", "error");
+    }
+}
+function uploadResult() {
+    const studentId = document.getElementById('result-student-id').value.trim();
+    const subject = document.getElementById('result-subject').value;
+    const scoreVal = document.getElementById('result-score').value;
+    const score = parseInt(scoreVal);
+    const status = document.getElementById('result-status').value;
+    const gradeLevel = document.getElementById('result-grade-level') ? document.getElementById('result-grade-level').value : '';
+    const stream = document.getElementById('result-stream') ? document.getElementById('result-stream').value : '';
+    if (!studentId || !subject || scoreVal === '') {
+        showMessage("Please fill in all fields", "error");
+        return;
+    }
+    if (isNaN(score) || score < 0 || score > 100) {
+        showMessage("Score must be a number between 0 and 100", "error");
+        return;
+    }
+    if ((gradeLevel === '11th' || gradeLevel === '12th') && !stream) {
+        showMessage("Please select a stream (Natural or Social) for 11th/12th", "error");
+        return;
+    }
+    syncFromFirebase(function() {
+        const student = students.find(s => s.student_id === studentId);
+        if (!student) {
+            showMessage("Student ID does not exist. Please register student first.", "error");
+            return;
+        }
+        const result = {
+            student_id: studentId,
+            student_name: student.student_name,
+            subject,
+            score,
+            status,
+            teacher_name: (currentUser && currentUser.name) ? currentUser.name : 'Unknown',
+            date_uploaded: new Date().toISOString(),
+            grade_level: gradeLevel,
+            stream: stream
+        };
+        results.push(result);
+        saveResultToFirebase(result);
+        showMessage("Result uploaded successfully!", "success");
+        clearForm(['result-student-id', 'result-score']);
+        document.getElementById('result-status').value = 'Pass';
+        updateAllResults();
+    });
+}
+function updateStudentResults() {
+    syncFromFirebase(function() {
+        const resultsContainer = document.getElementById('student-results');
+        if (!currentUser || !currentUser.student_id) {
+            resultsContainer.innerHTML = '<p class="text-white/80 dark:text-gray-200">Please login as a student to view results.</p>';
+            return;
+        }
+        const studentResults = results.filter(r => r.student_id === currentUser.student_id);
+        if (studentResults.length === 0) {
+            resultsContainer.innerHTML = '<p class="text-white/80 dark:text-gray-200">No results available yet.</p>';
+            return;
+        }
+        const gradeOrder = ['9th', '10th', '11th', '12th'];
+        const htmlParts = [];
+        gradeOrder.forEach(grade => {
+            const gradeItems = studentResults.filter(r => r.grade_level === grade);
+            htmlParts.push(`<div class="mb-6">`);
+            htmlParts.push(`<h4 class="text-lg font-semibold text-white dark:text-gray-100 mb-2">${escapeHtml(grade)} Results</h4>`);
+            if (gradeItems.length === 0) {
+                htmlParts.push(`<p class="text-white/80 dark:text-gray-200">No results for ${escapeHtml(grade)}.</p>`);
+            } else {
+                const includeStream = (grade === '11th' || grade === '12th');
+                htmlParts.push(`
+                  <div class="overflow-x-auto bg-transparent rounded-md">
+                    <table class="min-w-full text-left">
+                      <thead>
+                        <tr>
+                          <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Subject</th>
+                          <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Score</th>
+                          <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Status</th>
+                          ${includeStream ? '<th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Stream</th>' : ''}
+                          <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Date</th>
+                          <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Teacher</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-white/10">
+                        ${gradeItems.slice().sort((a,b) => new Date(b.date_uploaded) - new Date(a.date_uploaded)).map(result => `
+                          <tr>
+                            <td class="px-4 py-3 text-white/90 dark:text-gray-200">${escapeHtml(result.subject)}</td>
+                            <td class="px-4 py-3 text-white dark:text-gray-100">${result.score}/100</td>
+                            <td class="px-4 py-3">
+                              <span class="px-3 py-1 rounded-full text-sm font-semibold ${result.status === 'Pass' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}">
+                                ${result.status}
+                              </span>
+                            </td>
+                            ${includeStream ? `<td class="px-4 py-3 text-white/80 dark:text-gray-200">${escapeHtml(result.stream || '')}</td>` : ''}
+                            <td class="px-4 py-3 text-white/80 dark:text-gray-200">${new Date(result.date_uploaded).toLocaleDateString()}</td>
+                            <td class="px-4 py-3 text-white/80 dark:text-gray-200">${escapeHtml(result.teacher_name)}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                `);
+                const total = gradeItems.reduce((s, r) => s + (Number(r.score) || 0), 0);
+                const avg = gradeItems.length ? Math.round((total / gradeItems.length) * 100) / 100 : 0;
+                htmlParts.push(`
+                  <div class="mt-3 bg-white/5 dark:bg-black/20 rounded-md p-3 flex items-center justify-between">
+                    <div class="text-white/90 dark:text-gray-100">Total Score (${escapeHtml(grade)}): <span class="font-semibold text-white dark:text-gray-100">${total}</span></div>
+                    <div class="text-white/90 dark:text-gray-100">Average: <span class="font-semibold text-white dark:text-gray-100">${avg}/100</span></div>
+                  </div>
+                `);
+            }
+            htmlParts.push(`</div>`);
+        });
+        const otherItems = studentResults.filter(r => !gradeOrder.includes(r.grade_level));
+        if (otherItems.length) {
+            htmlParts.push(`<div class="mb-6">`);
+            htmlParts.push(`<h4 class="text-lg font-semibold text-white dark:text-gray-100 mb-2">Other / Unspecified Grade Results</h4>`);
+            htmlParts.push(`
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-left">
+                  <thead>
+                    <tr>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Subject</th>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Score</th>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Status</th>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Grade</th>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Stream</th>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Date</th>
+                      <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Teacher</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-white/10">
+                    ${otherItems.slice().sort((a,b) => new Date(b.date_uploaded) - new Date(a.date_uploaded)).map(result => `
+                      <tr>
+                        <td class="px-4 py-3 text-white/90 dark:text-gray-200">${escapeHtml(result.subject)}</td>
+                        <td class="px-4 py-3 text-white dark:text-gray-100">${result.score}/100</td>
+                        <td class="px-4 py-3">
+                          <span class="px-3 py-1 rounded-full text-sm font-semibold ${result.status === 'Pass' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}">
+                            ${result.status}
+                          </span>
+                        </td>
+                        <td class="px-4 py-3 text-white/80 dark:text-gray-200">${escapeHtml(result.grade_level || '—')}</td>
+                        <td class="px-4 py-3 text-white/80 dark:text-gray-200">${escapeHtml(result.stream || '—')}</td>
+                        <td class="px-4 py-3 text-white/80 dark:text-gray-200">${new Date(result.date_uploaded).toLocaleDateString()}</td>
+                        <td class="px-4 py-3 text-white/80 dark:text-gray-200">${escapeHtml(result.teacher_name)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `);
+            const totalOther = otherItems.reduce((s, r) => s + (Number(r.score) || 0), 0);
+            const avgOther = otherItems.length ? Math.round((totalOther / otherItems.length) * 100) / 100 : 0;
+            htmlParts.push(`
+              <div class="mt-3 bg-white/5 dark:bg-black/20 rounded-md p-3 flex items-center justify-between">
+                <div class="text-white/90 dark:text-gray-100">Total Score (Other): <span class="font-semibold text-white dark:text-gray-100">${totalOther}</span></div>
+                <div class="text-white/90 dark:text-gray-100">Average: <span class="font-semibold text-white dark:text-gray-100">${avgOther}/100</span></div>
+              </div>
+            `);
+            htmlParts.push(`</div>`);
+        }
+        resultsContainer.innerHTML = htmlParts.join('');
+    });
+}
+function updateAllResults() {
+    syncFromFirebase(function() {
+        const resultsContainer = document.getElementById('all-results');
+        if (results.length === 0) {
+            resultsContainer.innerHTML = '<p class="text-white/80 dark:text-gray-200">No results uploaded yet.</p>';
+            return;
+        }
+        const grouped = results.reduce((acc, r) => {
+            if (!acc[r.student_id]) { acc[r.student_id] = { student_id: r.student_id, student_name: r.student_name, items: [] }; }
+            acc[r.student_id].items.push(r);
+            return acc;
+        }, {});
+        const studentsList = Object.values(grouped);
+        resultsContainer.innerHTML = `
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-left">
+              <thead>
+                <tr>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Student ID</th>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Name</th>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Grade Level</th>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Subjects</th>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Total Score</th>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Average</th>
+                  <th class="px-4 py-3 text-sm font-semibold text-white dark:text-gray-100">Last Upload</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                ${studentsList.map(student => {
+                    const itemsSorted = student.items.slice().sort((a, b) => new Date(b.date_uploaded) - new Date(a.date_uploaded));
+                    const total = itemsSorted.reduce((s, it) => s + (Number(it.score) || 0), 0);
+                    const avg = itemsSorted.length ? Math.round((total / itemsSorted.length) * 100) / 100 : 0;
+                    const lastDate = itemsSorted.length ? new Date(itemsSorted[0].date_uploaded).toLocaleDateString() : '';
+                    const gradeMostRecent = itemsSorted.length ? (itemsSorted[0].grade_level || '') : '';
+                    const subjectsHtml = itemsSorted.map(it => `
+                        <div class="flex items-center justify-between gap-3 py-1">
+                          <div class="text-white/90 dark:text-gray-200 text-sm">${escapeHtml(it.subject)}</div>
+                          <div class="text-white dark:text-gray-100 text-sm">${it.score}/100</div>
+                          <div>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${it.status === 'Pass' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}">
+                              ${it.status}
+                            </span>
+                          </div>
+                        </div>
+                    `).join('');
+                    return `
+                      <tr>
+                        <td class="px-4 py-3 text-white font-semibold dark:text-gray-100">${escapeHtml(student.student_id)}</td>
+                        <td class="px-4 py-3 text-white/90 dark:text-gray-200">${escapeHtml(student.student_name)}</td>
+                        <td class="px-4 py-3 text-white/90 dark:text-gray-200">${escapeHtml(gradeMostRecent)}</td>
+                        <td class="px-4 py-3">
+                          <div class="bg-white/5 dark:bg-black/20 rounded-md p-2">
+                            ${subjectsHtml}
+                          </div>
+                        </td>
+                        <td class="px-4 py-3 text-white dark:text-gray-100">${total}</td>
+                        <td class="px-4 py-3 text-white dark:text-gray-100">${avg}</td>
+                        <td class="px-4 py-3 text-white/80 dark:text-gray-200">${lastDate}</td>
+                      </tr>
+                    `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+    });
+}
+function updateRegisteredStudentsList() {
+    syncFromFirebase(function() {
+        const div = document.getElementById("registered-students-list");
+        if(!div) return;
+        if(students.length === 0) {
+            div.innerHTML = '<p class="text-white dark:text-gray-200">No students registered yet.</p>';
+            return;
+        }
+        div.innerHTML = students.map(s => `
+            <div class="flex items-center gap-3">
+                <span class="font-semibold text-white dark:text-gray-100">ID:</span>
+                <span class="text-white/90 dark:text-gray-200">${escapeHtml(s.student_id)}</span>
+                <span class="font-semibold text-white dark:text-gray-100">| Name:</span>
+                <span class="text-white/90 dark:text-gray-200">${escapeHtml(s.student_name)}</span>
+            </div>
+        `).join('');
+    });
+}
+function seedDemo() {
+    clearFirebaseDemo();
+    setTimeout(function() {
+        const demoStudents = [
+            { student_id: 'S001', student_name: 'Alice Johnson', student_password: 'alice' },
+            { student_id: 'S002', student_name: 'Bob Smith', student_password: 'bob' },
+            { student_id: 'S003', student_name: 'Carol Lee', student_password: 'carol' }
+        ];
+        demoStudents.forEach(s => saveStudentToFirebase(s));
+        const now = new Date();
+        const demoResults = [
+            { student_id: 'S001', student_name: 'Alice Johnson', subject: 'Mathematics', score: 92, status: 'Pass', teacher_name: 'Mr. Demo', date_uploaded: new Date(now - 1000 * 60 * 60 * 24 * 5).toISOString(), grade_level: '10th' },
+            { student_id: 'S001', student_name: 'Alice Johnson', subject: 'English', score: 85, status: 'Pass', teacher_name: 'Mr. Demo', date_uploaded: new Date(now - 1000 * 60 * 60 * 24 * 3).toISOString(), grade_level: '10th' },
+            { student_id: 'S002', student_name: 'Bob Smith', subject: 'Mathematics', score: 68, status: 'Pass', teacher_name: 'Mrs. Teach', date_uploaded: new Date(now - 1000 * 60 * 60 * 24 * 2).toISOString(), grade_level: '9th' },
+            { student_id: 'S002', student_name: 'Bob Smith', subject: 'Physics', score: 54, status: 'Fail', teacher_name: 'Mrs. Teach', date_uploaded: new Date(now).toISOString(), grade_level: '9th' },
+            { student_id: 'S003', student_name: 'Carol Lee', subject: 'History', score: 77, status: 'Pass', teacher_name: 'Mr. Demo', date_uploaded: new Date(now).toISOString(), grade_level: '11th', stream: 'Social' }
+        ];
+        demoResults.forEach(r => saveResultToFirebase(r));
+        setTimeout(function() {
+            syncFromFirebase(function() { updateAllResults(); updateRegisteredStudentsList(); });
+        }, 700);
+    }, 700);
+}
+function seedDemoAndOpenTeacher() {
+    seedDemo();
+    setTimeout(()=>{
+        currentUser = { name: 'DemoTeacher' };
+        currentUserType = 'teacher';
+        document.getElementById('teacher-welcome').textContent = `Welcome, ${currentUser.name}!`;
+        hideAllPages();
+        document.getElementById('teacher-dashboard').classList.remove('hidden');
+        updateSubjectOptionsBasedOnGradeAndStream();
+        updateAllResults();
+        updateRegisteredStudentsList();
+    }, 1600);
+}
+function logoutStudent() { currentUser = null; currentUserType = null; showHome(); }
+function logoutTeacher() { currentUser = null; currentUserType = null; showHome(); }
+function showMessage(message, type) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white font-semibold z-50 ${
+        type === 'success' ? 'bg-green-600' : 'bg-red-600'
+    }`;
+    messageDiv.textContent = message;
+    document.body.appendChild(messageDiv);
+    setTimeout(() => messageDiv.remove(), 3000);
+}
+function clearForm(fieldIds) {
+    fieldIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+}
+function escapeHtml(str) {
+    if (!str && str !== 0) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+}
+document.addEventListener('DOMContentLoaded', initializeApp);
+</script>
+</body>
+</html>
