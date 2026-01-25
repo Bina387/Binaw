@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Chat Assistant</title>
+  <script src="https://js.puter.com/v2/"></script>
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #1f1c2c, #928dab);
+      --header-bg: rgba(0,0,0,0.4);
+      --user-msg: #4cafef;
+      --bot-msg: #2e2e3a;
+      --text-color: #fff;
+    }
+
+    body.light {
+      --bg-gradient: linear-gradient(135deg, #fdfbfb, #ebedee);
+      --header-bg: rgba(255,255,255,0.8);
+      --user-msg: #2196f3;
+      --bot-msg: #e0e0e0;
+      --text-color: #000;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      transition: background 0.5s, color 0.5s;
+    }
+
+    header {
+      padding: 15px;
+      text-align: center;
+      background: var(--header-bg);
+      font-size: 1.5em;
+      font-weight: bold;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .message {
+      max-width: 70%;
+      margin: 10px 0;
+      padding: 12px 18px;
+      border-radius: 12px;
+      line-height: 1.4em;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .user {
+      background: var(--user-msg);
+      color: #fff;
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .bot {
+      background: var(--bot-msg);
+      color: var(--text-color);
+      margin-right: auto;
+      text-align: left;
+    }
+
+    #input-area {
+      display: flex;
+      padding: 15px;
+      background: var(--header-bg);
+    }
+
+    #user-input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+      font-size: 1em;
+    }
+
+    #send-btn, #toggle-mode, #clear-btn {
+      margin-left: 10px;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      background: var(--user-msg);
+      color: #fff;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    #send-btn:hover, #toggle-mode:hover, #clear-btn:hover {
+      background: #2196f3;
+    }
+
+    #model-select {
+      margin-left: 10px;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      font-size: 1em;
+    }
+
+    .typing {
+      font-style: italic;
+      opacity: 0.7;
+      margin: 5px 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span>💬 AI Chat Assistant</span>
+    <div>
+      <select id="model-select">
+        <option value="gpt-5.2-chat">GPT-5.2 Chat</option>
+        <option value="gpt-5.2">GPT-5.2</option>
+        <option value="gpt-5.2-pro">GPT-5.2 Pro</option>
+        <option value="gpt-5.1">GPT-5.1</option>
+      </select>
+      <button id="toggle-mode">🌙</button>
+      <button id="clear-btn">🗑️ Clear</button>
+    </div>
+  </header>
+  <div id="chat-container"></div>
+  <div id="input-area">
+    <input type="text" id="user-input" placeholder="Ask me anything..." />
+    <button id="send-btn">Send</button>
+  </div>
+
+  <script>
+    const chatContainer = document.getElementById("chat-container");
+    const userInput = document.getElementById("user-input");
+    const sendBtn = document.getElementById("send-btn");
+    const modelSelect = document.getElementById("model-select");
+    const toggleMode = document.getElementById("toggle-mode");
+    const clearBtn = document.getElementById("clear-btn");
+
+    // Load saved chat history
+    window.onload = () => {
+      const saved = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      saved.forEach(msg => addMessage(msg.text, msg.sender, false));
+    };
+
+    function addMessage(text, sender, save = true) {
+      const msg = document.createElement("div");
+      msg.classList.add("message", sender);
+      msg.innerHTML = text;
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      if (save) {
+        const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+        history.push({ text, sender });
+        localStorage.setItem("chatHistory", JSON.stringify(history));
+      }
+    }
+
+    function addTypingIndicator() {
+      const typing = document.createElement("div");
+      typing.classList.add("typing");
+      typing.innerText = "Bot is typing…";
+      typing.id = "typing-indicator";
+      chatContainer.appendChild(typing);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const typing = document.getElementById("typing-indicator");
+      if (typing) typing.remove();
+    }
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      addMessage(text, "user");
+      userInput.value = "";
+
+      addTypingIndicator();
+
+      const model = modelSelect.value;
+      try {
+        const response = await puter.ai.chat(text, { model });
+        removeTypingIndicator();
+        addMessage(response, "bot");
+      } catch (err) {
+        removeTypingIndicator();
+        addMessage("⚠️ Error: " + err.message, "bot");
+      }
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    userInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    // Dark/Light mode toggle
+    toggleMode.addEventListener("click", () => {
+      document.body.classList.toggle("light");
+      toggleMode.textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
+    });
+
+    // Clear chat history
+    clearBtn.addEventListener("click", () => {
+      localStorage.removeItem("chatHistory");
+      chatContainer.innerHTML = "";
+      addMessage("Chat cleared ✅", "bot", false);
+    });
+  </script>
+</body>
+</html>
