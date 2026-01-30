@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Chat Assistant</title>
   <script src="https://js.puter.com/v2/"></script>
   <style>
@@ -34,15 +34,16 @@
     }
 
     header {
-      padding: 15px;
+      padding: 12px 16px;
       text-align: center;
       background: var(--header-bg);
-      font-size: 1.5em;
+      font-size: 1.05rem;
       font-weight: bold;
       letter-spacing: 1px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
     }
 
     #chat-container {
@@ -57,7 +58,10 @@
       padding: 12px 18px;
       border-radius: 12px;
       line-height: 1.4em;
-      animation: fadeIn 0.3s ease-in-out;
+      animation: fadeIn 0.25s ease-in-out;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      position: relative;
     }
 
     .user {
@@ -74,10 +78,46 @@
       text-align: left;
     }
 
+    .meta {
+      display: block;
+      font-size: 0.72rem;
+      opacity: 0.85;
+      margin-top: 8px;
+    }
+
+    .message-actions {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      display: flex;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .message:hover .message-actions,
+    .message:focus-within .message-actions {
+      opacity: 1;
+    }
+
+    .msg-act {
+      background: transparent;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+
+    .msg-act:hover { background: rgba(255,255,255,0.06); }
+
     #input-area {
       display: flex;
-      padding: 15px;
+      padding: 12px;
       background: var(--header-bg);
+      gap: 8px;
+      align-items: center;
     }
 
     #user-input {
@@ -87,21 +127,29 @@
       border: none;
       outline: none;
       font-size: 1em;
+      resize: none;
+      min-height: 44px;
+      max-height: 160px;
     }
 
-    #send-btn, #toggle-mode, #clear-btn {
-      margin-left: 10px;
-      padding: 12px 20px;
+    #send-btn, #toggle-mode, #clear-btn, #export-btn, #regenerate-btn {
+      margin-left: 0;
+      padding: 10px 12px;
       border: none;
       border-radius: 8px;
       background: var(--user-msg);
       color: #fff;
-      font-size: 1em;
+      font-size: 0.95em;
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background 0.25s;
     }
 
-    #send-btn:hover, #toggle-mode:hover, #clear-btn:hover {
+    #send-btn[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #send-btn:hover:not([disabled]), #toggle-mode:hover, #clear-btn:hover, #export-btn:hover, #regenerate-btn:hover {
       background: #2196f3;
     }
 
@@ -110,119 +158,605 @@
       padding: 8px;
       border-radius: 6px;
       border: none;
-      font-size: 1em;
+      font-size: 0.95em;
     }
 
     .typing {
       font-style: italic;
-      opacity: 0.7;
+      opacity: 0.9;
       margin: 5px 0;
     }
 
+    .hidden { display: none; }
+
+    #search-input {
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.9rem;
+      margin-left: 8px;
+    }
+
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* small screens */
+    @media (max-width: 640px) {
+      .message { max-width: 92%; }
+      header { font-size: 1rem; gap: 8px; }
+      #model-select { display: none; }
     }
   </style>
 </head>
 <body>
   <header>
     <span>💬 AI Chat Assistant</span>
-    <div>
-      <select id="model-select">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <select id="model-select" aria-label="Model selection">
         <option value="gpt-5.2-chat">GPT-5.2 Chat</option>
         <option value="gpt-5.2">GPT-5.2</option>
         <option value="gpt-5.2-pro">GPT-5.2 Pro</option>
         <option value="gpt-5.1">GPT-5.1</option>
       </select>
-      <button id="toggle-mode">🌙</button>
-      <button id="clear-btn">🗑️ Clear</button>
+      <input id="search-input" placeholder="Search messages..." title="Search messages (text match)" />
+      <button id="toggle-mode" aria-pressed="false" title="Toggle theme">🌙</button>
+      <button id="regenerate-btn" title="Regenerate last reply">🔁 Regenerate</button>
+      <button id="export-btn" title="Export conversation">⬇️ Export</button>
+      <button id="clear-btn" title="Clear chat">🗑️ Clear</button>
     </div>
   </header>
-  <div id="chat-container"></div>
+
+  <div id="chat-container" role="log" aria-live="polite"></div>
+
   <div id="input-area">
-    <input type="text" id="user-input" placeholder="Ask me anything..." />
+    <textarea id="user-input" placeholder="Ask me anything... (Shift+Enter for newline)" aria-label="Message input"></textarea>
     <button id="send-btn">Send</button>
   </div>
 
+  <input type="file" id="import-file" accept="application/json" class="hidden" />
+
   <script>
+    // Client script with safe proxy fallback and new features (search + export MD)
     const chatContainer = document.getElementById("chat-container");
     const userInput = document.getElementById("user-input");
     const sendBtn = document.getElementById("send-btn");
     const modelSelect = document.getElementById("model-select");
     const toggleMode = document.getElementById("toggle-mode");
     const clearBtn = document.getElementById("clear-btn");
+    const exportBtn = document.getElementById("export-btn");
+    const regenerateBtn = document.getElementById("regenerate-btn");
+    const importFile = document.getElementById("import-file");
+    const searchInput = document.getElementById("search-input");
 
-    // Load saved chat history
-    window.onload = () => {
-      const saved = JSON.parse(localStorage.getItem("chatHistory")) || [];
-      saved.forEach(msg => addMessage(msg.text, msg.sender, false));
+    let useProxy = false; // will be detected at load
+
+    // Utility: generate unique id
+    function makeId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    }
+
+    // Format timestamp
+    function fmtTS(ts) {
+      return new Date(ts).toLocaleString();
+    }
+
+    // Load saved state
+    window.onload = async () => {
+      // detect server proxy health — non-blocking & timed
+      detectProxy();
+
+      const theme = localStorage.getItem("theme") || "dark";
+      if (theme === "light") {
+        document.body.classList.add("light");
+        toggleMode.textContent = "☀️";
+        toggleMode.setAttribute("aria-pressed", "true");
+      }
+
+      const savedModel = localStorage.getItem("selectedModel");
+      if (savedModel) modelSelect.value = savedModel;
+
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      history.forEach(msg => {
+        const el = renderMessage(msg, false);
+        chatContainer.appendChild(el);
+      });
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      userInput.focus();
     };
 
-    function addMessage(text, sender, save = true) {
-      const msg = document.createElement("div");
-      msg.classList.add("message", sender);
-      msg.innerHTML = text;
-      chatContainer.appendChild(msg);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-
-      if (save) {
-        const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
-        history.push({ text, sender });
-        localStorage.setItem("chatHistory", JSON.stringify(history));
+    // Proxy detection (ping /api/health with timeout)
+    async function detectProxy() {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 900);
+        const r = await fetch('/api/health', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (r.ok) {
+          useProxy = true;
+          console.log("[proxy] server proxy available; client will use it for API calls.");
+        } else {
+          useProxy = false;
+          console.log("[proxy] server responded but not OK; falling back to SDK.");
+        }
+      } catch (err) {
+        useProxy = false;
+        console.log("[proxy] no proxy detected — using SDK fallback.");
       }
     }
 
-    function addTypingIndicator() {
-      const typing = document.createElement("div");
-      typing.classList.add("typing");
-      typing.innerText = "Bot is typing…";
-      typing.id = "typing-indicator";
-      chatContainer.appendChild(typing);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+    // Storage helpers
+    function persistMessage(text, sender, extra = {}) {
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      const entry = {
+        id: makeId(),
+        text,
+        sender,
+        timestamp: Date.now(),
+        model: modelSelect.value,
+        ...extra
+      };
+      history.push(entry);
+      localStorage.setItem("chatHistory", JSON.stringify(history));
+      return entry;
     }
 
-    function removeTypingIndicator() {
-      const typing = document.getElementById("typing-indicator");
-      if (typing) typing.remove();
+    function updateMessageInStorage(id, patch) {
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      const idx = history.findIndex(m => m.id === id);
+      if (idx === -1) return false;
+      history[idx] = { ...history[idx], ...patch };
+      localStorage.setItem("chatHistory", JSON.stringify(history));
+      return true;
+    }
+
+    function removeMessageFromStorage(id) {
+      let history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      history = history.filter(m => m.id !== id);
+      localStorage.setItem("chatHistory", JSON.stringify(history));
+    }
+
+    function findMessage(id) {
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      return history.find(m => m.id === id);
+    }
+
+    // Render a message DOM element
+    function renderMessage(entry, save = true) {
+      const id = entry.id || makeId();
+      const sender = entry.sender || "bot";
+      const text = entry.text || "";
+      const ts = entry.timestamp ? fmtTS(entry.timestamp) : "";
+
+      const msg = document.createElement("div");
+      msg.classList.add("message", sender);
+      msg.dataset.id = id;
+      msg.tabIndex = 0;
+
+      const content = document.createElement("div");
+      content.className = "content";
+      content.textContent = text;
+      msg.appendChild(content);
+
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = ts;
+      msg.appendChild(meta);
+
+      // Actions
+      const actions = document.createElement("div");
+      actions.className = "message-actions";
+      // Copy
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "msg-act";
+      copyBtn.title = "Copy";
+      copyBtn.textContent = "📋";
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        navigator.clipboard?.writeText(content.textContent || "").then(() => {
+          copyBtn.textContent = "✅";
+          setTimeout(() => copyBtn.textContent = "📋", 900);
+        });
+      });
+      actions.appendChild(copyBtn);
+
+      // Edit (only for user messages)
+      if (sender === "user") {
+        const editBtn = document.createElement("button");
+        editBtn.className = "msg-act";
+        editBtn.title = "Edit";
+        editBtn.textContent = "✏️";
+        editBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startEditMessage(msg, content.textContent || "");
+        });
+        actions.appendChild(editBtn);
+      }
+
+      // Regenerate (bot messages)
+      if (sender === "bot") {
+        const regenBtn = document.createElement("button");
+        regenBtn.className = "msg-act";
+        regenBtn.title = "Regenerate reply";
+        regenBtn.textContent = "🔁";
+        regenBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const ent = findMessage(id);
+          if (ent && ent.replyTo) {
+            const userMsg = findMessage(ent.replyTo);
+            if (userMsg) {
+              await sendMessageWithText(userMsg.text);
+            } else {
+              alert("Original user message not found.");
+            }
+          } else {
+            alert("No original user message linked.");
+          }
+        });
+        actions.appendChild(regenBtn);
+      }
+
+      // Delete
+      const delBtn = document.createElement("button");
+      delBtn.className = "msg-act";
+      delBtn.title = "Delete";
+      delBtn.textContent = "🗑️";
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (confirm("Delete this message?")) {
+          msg.remove();
+          removeMessageFromStorage(id);
+        }
+      });
+      actions.appendChild(delBtn);
+
+      msg.appendChild(actions);
+      return msg;
+    }
+
+    function startEditMessage(msgEl, originalText) {
+      const id = msgEl.dataset.id;
+      const content = msgEl.querySelector(".content");
+      const meta = msgEl.querySelector(".meta");
+      const textarea = document.createElement("textarea");
+      textarea.style.width = "100%";
+      textarea.style.boxSizing = "border-box";
+      textarea.value = originalText;
+      content.replaceWith(textarea);
+
+      const saveBtn = document.createElement("button");
+      saveBtn.textContent = "Save";
+      saveBtn.style.marginLeft = "8px";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.style.marginLeft = "6px";
+
+      const controlDiv = document.createElement("div");
+      controlDiv.style.marginTop = "8px";
+      controlDiv.appendChild(saveBtn);
+      controlDiv.appendChild(cancelBtn);
+      msgEl.appendChild(controlDiv);
+
+      saveBtn.addEventListener("click", () => {
+        const newText = textarea.value.trim();
+        if (!newText) {
+          alert("Message cannot be empty");
+          return;
+        }
+        const newContent = document.createElement("div");
+        newContent.className = "content";
+        newContent.textContent = newText;
+        textarea.replaceWith(newContent);
+        controlDiv.remove();
+        updateMessageInStorage(id, { text: newText, timestamp: Date.now() });
+        meta.textContent = fmtTS(Date.now());
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        const newContent = document.createElement("div");
+        newContent.className = "content";
+        newContent.textContent = originalText;
+        textarea.replaceWith(newContent);
+        controlDiv.remove();
+      });
+    }
+
+    function addTyping() {
+      removeTyping();
+      const t = document.createElement("div");
+      t.id = "typing-indicator";
+      t.className = "typing bot";
+      t.textContent = "Bot is typing…";
+      chatContainer.appendChild(t);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    function removeTyping() {
+      const t = document.getElementById("typing-indicator");
+      if (t) t.remove();
+    }
+
+    // Progressive reveal
+    function progressiveReveal(contentEl, fullText, onComplete) {
+      contentEl.textContent = "";
+      let i = 0;
+      const len = fullText.length;
+      const chunkMs = 14;
+      function step() {
+        const chunkSize = (len > 800) ? 8 : 1;
+        contentEl.textContent += fullText.slice(i, i + chunkSize);
+        i += chunkSize;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (i < len) {
+          setTimeout(step, chunkMs);
+        } else {
+          onComplete && onComplete();
+        }
+      }
+      step();
+    }
+
+    // Send message using either proxy or SDK fallback
+    async function sendMessageWithText(text) {
+      if (!text) return;
+      const userEntry = persistMessage(text, "user");
+      const userEl = renderMessage(userEntry);
+      chatContainer.appendChild(userEl);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      localStorage.setItem("selectedModel", modelSelect.value);
+
+      setBusy(true);
+      addTyping();
+
+      const prompt = buildContextPrompt(text, 8);
+
+      try {
+        // Use proxy if available
+        let raw;
+        if (useProxy) {
+          raw = await proxyChat(prompt, modelSelect.value);
+        } else {
+          raw = await puter.ai.chat(prompt, { model: modelSelect.value });
+        }
+
+        removeTyping();
+
+        let botText = "";
+        if (raw == null && typeof raw === "string") botText = raw;
+        else if (typeof raw === "string") botText = raw;
+        else if (raw && typeof raw === "object") {
+          if (raw.text) botText = raw.text;
+          else if (raw.message && raw.message.content) botText = raw.message.content;
+          else if (raw.choices && raw.choices[0]) {
+            const c = raw.choices[0];
+            botText = c.text || (c.message && c.message.content) || JSON.stringify(c);
+          } else if (raw.result) {
+            botText = raw.result;
+          } else {
+            botText = JSON.stringify(raw);
+          }
+        } else botText = String(raw);
+
+        const botEntry = persistMessage("", "bot", { replyTo: userEntry.id });
+        const botEl = renderMessage(botEntry);
+        botEl.dataset.id = botEntry.id;
+        const contentEl = botEl.querySelector(".content");
+        chatContainer.appendChild(botEl);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+
+        progressiveReveal(contentEl, botText, () => {
+          updateMessageInStorage(botEntry.id, { text: botText, timestamp: Date.now() });
+          const metaEl = botEl.querySelector(".meta");
+          if (metaEl) metaEl.textContent = fmtTS(Date.now());
+        });
+      } catch (err) {
+        removeTyping();
+        const msg = err && err.message ? `⚠️ Error: ${err.message}` : "⚠️ Unknown error";
+        const botEntry = persistMessage(msg, "bot", { replyTo: userEntry.id });
+        const botEl = renderMessage(botEntry);
+        chatContainer.appendChild(botEl);
+        console.error("Chat error:", err);
+      } finally {
+        setBusy(false);
+      }
     }
 
     async function sendMessage() {
       const text = userInput.value.trim();
       if (!text) return;
-      addMessage(text, "user");
       userInput.value = "";
-
-      addTypingIndicator();
-
-      const model = modelSelect.value;
-      try {
-        const response = await puter.ai.chat(text, { model });
-        removeTypingIndicator();
-        addMessage(response, "bot");
-      } catch (err) {
-        removeTypingIndicator();
-        addMessage("⚠️ Error: " + err.message, "bot");
-      }
+      userInput.focus();
+      await sendMessageWithText(text);
     }
 
+    function buildContextPrompt(newUserMessage, maxTurns = 6) {
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      const recent = history.slice(-maxTurns);
+      let prompt = "";
+      for (const m of recent) {
+        const role = m.sender === "user" ? "User" : "Assistant";
+        prompt += `${role}: ${m.text}\n`;
+      }
+      prompt += `User: ${newUserMessage}\nAssistant:`;
+      return prompt;
+    }
+
+    function setBusy(flag) {
+      sendBtn.disabled = flag;
+      userInput.disabled = flag;
+      modelSelect.disabled = flag;
+      clearBtn.disabled = flag;
+      exportBtn.disabled = flag;
+      regenerateBtn.disabled = flag;
+      searchInput.disabled = flag;
+    }
+
+    // Proxy call wrapper
+    async function proxyChat(prompt, model) {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, model })
+      });
+      if (!r.ok) {
+        const text = await r.text().catch(()=>"");
+        throw new Error(`Proxy error: ${r.status} ${r.statusText} ${text}`);
+      }
+      const data = await r.json().catch(() => null);
+      // expect { text: "...", usage: {...} } or other shapes
+      return data;
+    }
+
+    // Keyboard shortcuts
+    window.addEventListener("keydown", (e) => {
+      const mod = navigator.platform.includes('Mac') ? e.metaKey : e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        userInput.focus();
+      }
+      if ((mod && e.key === "Enter") || (e.ctrlKey && e.key === "Enter")) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    userInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
     sendBtn.addEventListener("click", sendMessage);
-    userInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
-    });
 
-    // Dark/Light mode toggle
     toggleMode.addEventListener("click", () => {
-      document.body.classList.toggle("light");
-      toggleMode.textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
+      const isLight = document.body.classList.toggle("light");
+      toggleMode.textContent = isLight ? "☀️" : "🌙";
+      toggleMode.setAttribute("aria-pressed", String(isLight));
+      localStorage.setItem("theme", isLight ? "light" : "dark");
     });
 
-    // Clear chat history
     clearBtn.addEventListener("click", () => {
-      localStorage.removeItem("chatHistory");
-      chatContainer.innerHTML = "";
-      addMessage("Chat cleared ✅", "bot", false);
+      if (confirm("Clear all chat history?")) {
+        localStorage.removeItem("chatHistory");
+        chatContainer.innerHTML = "";
+        addSystemNotice("Chat cleared ✅");
+      }
     });
+
+    // Export (left-click: export JSON, right-click: import)
+    exportBtn.addEventListener("click", () => {
+      const history = localStorage.getItem("chatHistory") || "[]";
+      const blob = new Blob([history], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chat-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    exportBtn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      importFile.click();
+    });
+
+    importFile.addEventListener("change", (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (!Array.isArray(data)) throw new Error("Invalid format");
+          localStorage.setItem("chatHistory", JSON.stringify(data));
+          chatContainer.innerHTML = "";
+          data.forEach(m => chatContainer.appendChild(renderMessage(m)));
+          addSystemNotice("Import successful ✅");
+        } catch (err) {
+          alert("Failed to import: " + err.message);
+        }
+      };
+      reader.readAsText(f);
+    });
+
+    // Export to Markdown function
+    function exportToMarkdownFile() {
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      const lines = [];
+      for (const m of history) {
+        const time = fmtTS(m.timestamp);
+        if (m.sender === "user") {
+          lines.push(`### User — ${time}\n\n${m.text}\n`);
+        } else if (m.sender === "bot") {
+          lines.push(`### Assistant — ${time}\n\n${m.text}\n`);
+        } else {
+          lines.push(`### ${m.sender} — ${time}\n\n${m.text}\n`);
+        }
+      }
+      const md = `# Chat Transcript — ${new Date().toLocaleString()}\n\n` + lines.join("\n---\n\n");
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transcript-${new Date().toISOString().replace(/[:.]/g,'-')}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Attach exportToMarkdown to export button long-press or alt+click
+    exportBtn.addEventListener("dblclick", exportToMarkdownFile);
+    exportBtn.title = "Left-click = export JSON, double-click = export Markdown, right-click = import";
+
+    // Regenerate last bot reply
+    regenerateBtn.addEventListener("click", async () => {
+      const history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+      const lastBot = [...history].reverse().find(m => m.sender === "bot");
+      if (!lastBot) {
+        alert("No bot reply found to regenerate.");
+        return;
+      }
+      if (lastBot.replyTo) {
+        const userMsg = findMessage(lastBot.replyTo);
+        if (userMsg) {
+          await sendMessageWithText(userMsg.text);
+        } else {
+          alert("Original user message not found.");
+        }
+      } else {
+        alert("No linked user message available for regeneration.");
+      }
+    });
+
+    function addSystemNotice(text) {
+      const entry = { id: makeId(), text, sender: "bot", timestamp: Date.now() };
+      const el = renderMessage(entry);
+      chatContainer.appendChild(el);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // Message Search
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      filterMessages(q);
+    });
+
+    function filterMessages(query) {
+      const nodes = Array.from(chatContainer.children);
+      if (!query) {
+        nodes.forEach(n => n.style.display = "");
+        return;
+      }
+      nodes.forEach(n => {
+        const txt = (n.querySelector(".content")?.textContent || "").toLowerCase();
+        if (txt.includes(query)) n.style.display = "";
+        else n.style.display = "none";
+      });
+    }
+
+    // Focus input on load
+    userInput.focus();
   </script>
 </body>
 </html>
